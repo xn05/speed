@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Speedometer</title>
+<style>
+  :root {
+    --bg: #07090d;
+    --card: #0e131b;
+    --border: #1b2330;
+    --track: #2a3441;
+    --accent: #7cc7ee;
+    --red: #e0524a;
+    --green: #6fe3a0;
+    --text: #e3eaf2;
+    --muted: #6b7889;
+    --mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; background: var(--bg); }
+  body {
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px 16px; font-family: var(--mono); color: var(--text);
+  }
+  .card {
+    width: 100%; max-width: 560px; background: var(--card);
+    border: 1px solid var(--border); border-radius: 16px; padding: 22px 24px 24px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.5);
+  }
+  header { display: flex; justify-content: space-between; align-items: center; }
+  .title { font-size: 12px; letter-spacing: .08em; color: var(--muted); }
+  .chip {
+    font-size: 11px; font-weight: 700; letter-spacing: .1em; padding: 5px 12px;
+    border-radius: 999px; background: #1a2230; color: var(--muted); transition: all .2s;
+  }
+  .chip.on { background: #12301f; color: var(--green); }
+
+  .main { display: flex; align-items: center; gap: 28px; margin-top: 6px; }
+  .gauge { flex: 1 1 280px; min-width: 0; }
+  .gauge svg { width: 100%; height: auto; display: block; }
+
+  .readouts { flex: 0 0 150px; display: flex; flex-direction: column; gap: 20px; }
+  .label { font-size: 10px; letter-spacing: .14em; color: var(--muted); margin-bottom: 4px; }
+  .value { font-size: 32px; font-weight: 700; line-height: 1; }
+  .value small { font-size: 14px; font-weight: 400; color: var(--muted); margin-left: 6px; }
+
+  hr { border: 0; border-top: 1px solid var(--border); margin: 18px 0 14px; }
+  .spark svg { width: 100%; height: 60px; display: block; }
+
+  .controls { margin-top: 18px; display: flex; flex-direction: column; gap: 12px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  button {
+    font: inherit; font-size: 11px; letter-spacing: .08em; color: var(--text);
+    background: #151c27; border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 12px; cursor: pointer; transition: background .15s, border-color .15s;
+  }
+  button:hover { background: #1c2533; border-color: #2c3a4e; }
+  button.active { border-color: var(--accent); color: var(--accent); }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  button.primary {
+    width: 100%; padding: 15px 12px; font-size: 13px; font-weight: 700; letter-spacing: .12em;
+    color: #06121b; background: var(--accent); border-color: var(--accent);
+  }
+  button.primary:hover { background: #95d3f3; }
+  button.primary.live { background: #151c27; color: var(--accent); border-color: var(--accent); }
+  .note { font-size: 11px; line-height: 1.5; color: var(--muted); }
+  .note.err { color: #f0a29c; }
+  details { border-top: 1px solid var(--border); padding-top: 12px; }
+  details[open] { display: flex; flex-direction: column; gap: 12px; }
+  summary { font-size: 10px; letter-spacing: .14em; color: var(--muted); cursor: pointer; }
+
+  @media (max-width: 480px) {
+    .main { flex-direction: column; align-items: stretch; gap: 8px; }
+    .readouts { flex-direction: row; justify-content: space-between; flex-basis: auto; gap: 8px; }
+    .value { font-size: 24px; }
+    .value small { display: block; margin: 4px 0 0; font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <header>
+    <div class="title">SPEEDOMETER · 0–240 KM/H</div>
+    <div class="chip" id="chip">● STOPPED</div>
+  </header>
+
+  <div class="main">
+    <div class="gauge">
+      <svg viewBox="0 0 280 230" id="gauge" aria-label="Analog speedometer">
+        <path id="track" fill="none" stroke="var(--track)" stroke-width="7" stroke-linecap="round"/>
+        <path id="redzone" fill="none" stroke="var(--red)" stroke-width="7" stroke-linecap="round"/>
+        <g id="ticks"></g>
+        <g id="labels"></g>
+        <text x="140" y="208" text-anchor="middle" font-size="9" letter-spacing="1.5" fill="var(--muted)">KM/H</text>
+        <g id="needle">
+          <line id="needleLine" x1="150" y1="125" x2="198" y2="125" stroke="var(--accent)" stroke-width="3" stroke-linecap="round"
+                style="filter: drop-shadow(0 0 4px rgba(124,199,238,.7))"/>
+          <circle cx="140" cy="125" r="9" fill="var(--card)" stroke="var(--accent)" stroke-width="2.5"/>
+        </g>
+      </svg>
+    </div>
+
+    <div class="readouts">
+      <div><div class="label">KM/H</div><div class="value" id="kmh">0<small>km/h</small></div></div>
+      <div><div class="label">MPH</div><div class="value" id="mph">0<small>mph</small></div></div>
+      <div><div class="label">M/S</div><div class="value" id="ms">0.0<small>m/s</small></div></div>
+    </div>
+  </div>
+
+  <hr>
+  <div class="label">SPEED — LAST 4 S</div>
+  <div class="spark">
+    <svg viewBox="0 0 480 60" preserveAspectRatio="none">
+      <polyline id="spark" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+    </svg>
+  </div>
+
+  <div class="controls">
+    <button id="gps" class="primary">◉ START GPS</button>
+    <div class="note" id="note">Tap to use your device's location for live speed.</div>
+    <details>
+      <summary>SIMULATE (NO GPS)</summary>
+      <input type="range" id="slider" min="0" max="240" step="1" value="0" aria-label="Set speed in km/h">
+      <div class="row">
+        <button data-v="0">0</button>
+        <button data-v="50">50</button>
+        <button data-v="100">100</button>
+        <button data-v="150">150</button>
+        <button data-v="220">220</button>
+        <button id="demo">▶ DEMO</button>
+      </div>
+    </details>
+  </div>
+</div>
+
+<script>
+const CX = 140, CY = 125, R = 105, MAX = 240, A0 = 135, SWEEP = 270, RED_FROM = 200;
+const NS = "http://www.w3.org/2000/svg";
+const clamp = v => Math.min(Math.max(v, 0), MAX);
+const ang = v => A0 + SWEEP * clamp(v) / MAX;
+const rad = d => d * Math.PI / 180;
+const pt = (a, r) => [CX + r * Math.cos(rad(a)), CY + r * Math.sin(rad(a))];
+
+function arc(v0, v1, r) {
+  const a0 = ang(v0), a1 = ang(v1);
+  const [x0, y0] = pt(a0, r), [x1, y1] = pt(a1, r);
+  return `M${x0.toFixed(2)} ${y0.toFixed(2)} A${r} ${r} 0 ${(a1 - a0) > 180 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+}
+
+// Build the static dial
+document.getElementById("track").setAttribute("d", arc(0, MAX, R));
+document.getElementById("redzone").setAttribute("d", arc(RED_FROM, MAX, R));
+
+const ticks = document.getElementById("ticks");
+const labels = document.getElementById("labels");
+for (let v = 0; v <= MAX; v += 10) {
+  const major = v % 20 === 0;
+  const a = ang(v);
+  const [x1, y1] = pt(a, R - 12);
+  const [x2, y2] = pt(a, R - (major ? 20 : 17));
+  const l = document.createElementNS(NS, "line");
+  l.setAttribute("x1", x1); l.setAttribute("y1", y1);
+  l.setAttribute("x2", x2); l.setAttribute("y2", y2);
+  l.setAttribute("stroke", major ? "#8b99ab" : "#4a5666");
+  l.setAttribute("stroke-width", major ? 1.6 : 1);
+  ticks.appendChild(l);
+  if (major) {
+    const [tx, ty] = pt(a, R - 33);
+    const t = document.createElementNS(NS, "text");
+    t.setAttribute("x", tx); t.setAttribute("y", ty + 3);
+    t.setAttribute("text-anchor", "middle");
+    t.setAttribute("font-size", "9.5");
+    t.setAttribute("fill", v >= RED_FROM ? "var(--red)" : "#8b99ab");
+    t.textContent = v;
+    labels.appendChild(t);
+  }
+}
+
+// State
+const els = {
+  needle: document.getElementById("needle"),
+  kmh: document.getElementById("kmh"),
+  mph: document.getElementById("mph"),
+  ms: document.getElementById("ms"),
+  chip: document.getElementById("chip"),
+  spark: document.getElementById("spark"),
+  slider: document.getElementById("slider"),
+  demo: document.getElementById("demo"),
+  gps: document.getElementById("gps"),
+  note: document.getElementById("note"),
+};
+let target = 0, shown = 0, demoOn = false, demoT = 0, mode = "sim";
+const history = [];
+const HISTORY_LEN = 240; // ~4 s at 60 fps
+
+function setTarget(v) { target = clamp(+v); els.slider.value = target; }
+
+els.slider.addEventListener("input", e => { stopDemo(); stopGPS(); target = +e.target.value; });
+document.querySelectorAll("button[data-v]").forEach(b =>
+  b.addEventListener("click", () => { stopDemo(); stopGPS(); setTarget(b.dataset.v); }));
+els.demo.addEventListener("click", () => demoOn ? stopDemo() : startDemo());
+els.gps.addEventListener("click", () => mode === "gps" ? stopGPS() : startGPS());
+
+function startDemo() { stopGPS(); demoOn = true; els.demo.classList.add("active"); els.demo.textContent = "■ STOP DEMO"; }
+function stopDemo()  { demoOn = false; els.demo.classList.remove("active"); els.demo.textContent = "▶ DEMO"; }
+
+function render() {
+  els.needle.setAttribute("transform", `rotate(${ang(shown).toFixed(2)} ${CX} ${CY})`);
+  els.kmh.firstChild.nodeValue = Math.round(shown);
+  els.mph.firstChild.nodeValue = Math.round(shown * 0.621371);
+  els.ms.firstChild.nodeValue = (shown / 3.6).toFixed(1);
+  if (mode !== "gps") {
+    const moving = shown > 0.5;
+    els.chip.textContent = moving ? "● MOVING" : "● STOPPED";
+    els.chip.classList.toggle("on", moving);
+  }
+
+  history.push(shown);
+  if (history.length > HISTORY_LEN) history.shift();
+  const step = 480 / (HISTORY_LEN - 1);
+  els.spark.setAttribute("points",
+    history.map((v, i) => `${(i * step).toFixed(1)},${(56 - (v / MAX) * 52).toFixed(1)}`).join(" "));
+}
+
+// ---------- GPS ----------
+let watchId = null, lastFix = null, lastFixAt = 0, wakeLock = null;
+
+function note(msg, err) { els.note.textContent = msg; els.note.classList.toggle("err", !!err); }
+function chip(text, on) { els.chip.textContent = text; els.chip.classList.toggle("on", !!on); }
+
+function haversine(lat1, lon1, lat2, lon2) {
+  const toR = Math.PI / 180, dLat = (lat2 - lat1) * toR, dLon = (lon2 - lon1) * toR;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * toR) * Math.cos(lat2 * toR) * Math.sin(dLon / 2) ** 2;
+  return 12742000 * Math.asin(Math.sqrt(a)); // metres
+}
+
+async function requestWake() {
+  try { if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {}
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && mode === "gps") requestWake();
+});
+
+function startGPS() {
+  if (!("geolocation" in navigator)) { note("This browser doesn't support geolocation.", true); return; }
+  if (!window.isSecureContext) {
+    note("GPS needs a secure page (https://). Host this file on something like GitHub Pages or Netlify, then open it on your phone.", true);
+    return;
+  }
+  stopDemo();
+  mode = "gps"; lastFix = null; target = 0;
+  els.gps.textContent = "■ STOP GPS";
+  els.gps.classList.add("live");
+  chip("● SEARCHING", false);
+  note("Waiting for a GPS fix… allow location access if prompted.");
+  watchId = navigator.geolocation.watchPosition(onFix, onGeoError,
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+  requestWake();
+}
+
+function stopGPS() {
+  if (mode !== "gps") return;
+  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+  watchId = null; mode = "sim"; lastFix = null;
+  target = 0;
+  els.slider.value = 0;
+  els.gps.textContent = "◉ START GPS";
+  els.gps.classList.remove("live");
+  note("Tap to use your device's location for live speed.");
+  try { if (wakeLock) wakeLock.release(); } catch (e) {}
+  wakeLock = null;
+}
+
+function onFix(pos) {
+  const c = pos.coords;
+  let v = (typeof c.speed === "number" && isFinite(c.speed)) ? c.speed : null; // m/s
+
+  // Some devices don't report speed: derive it from the distance between fixes
+  if (v === null && lastFix) {
+    const dt = (pos.timestamp - lastFix.t) / 1000;
+    if (dt > 0.5) {
+      const d = haversine(lastFix.lat, lastFix.lon, c.latitude, c.longitude);
+      v = d < Math.max(5, c.accuracy * 0.5) ? 0 : d / dt; // ignore GPS jitter
+    }
+  }
+  lastFix = { lat: c.latitude, lon: c.longitude, t: pos.timestamp };
+  lastFixAt = performance.now();
+
+  if (v !== null) {
+    const kmh = v * 3.6;
+    target = clamp(kmh < 1 ? 0 : kmh);
+  }
+  chip("● GPS LIVE", true);
+  note(`GPS locked · accuracy ±${Math.round(c.accuracy)} m` + (c.accuracy > 50 ? " (weak signal)" : ""));
+}
+
+function onGeoError(err) {
+  const msgs = {
+    1: "Location permission denied. Allow it in your browser/site settings and try again.",
+    2: "Position unavailable. Try going outside or somewhere with a clearer sky view.",
+    3: "Timed out waiting for GPS. Still trying…",
+  };
+  note(msgs[err.code] || "Couldn't read your location.", true);
+  if (err.code === 1) stopGPS(), note(msgs[1], true);
+  else chip("● NO SIGNAL", false);
+}
+
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min((now - last) / 1000, 0.05);
+  last = now;
+  // GPS went quiet for a while: stop pretending we know the speed
+  if (mode === "gps" && lastFix && now - lastFixAt > 8000) {
+    target = 0; chip("● NO SIGNAL", false);
+  }
+  if (demoOn) {
+    demoT += dt;
+    setTarget(120 + 95 * Math.sin(demoT * 0.45) + 20 * Math.sin(demoT * 1.3));
+  }
+  // smooth, slightly springy follow
+  shown += (target - shown) * (1 - Math.exp(-6 * dt));
+  if (Math.abs(target - shown) < 0.01) shown = target;
+  render();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
